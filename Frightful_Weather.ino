@@ -11,7 +11,6 @@
 static unsigned int wait = 0;
 static unsigned int chance_of_snow = 8;
 uint32_t snow_color = Color(40, 60, 70);
-uint32_t bg_color = Color(0, 0, 0);
 
 // System configs.
 int pins[] = {
@@ -20,7 +19,7 @@ int pins[] = {
   4, // data  #2
   5  // clock #2
 };
-const unsigned int num_cols = 2;
+const unsigned int num_cols = 4;
 const unsigned int num_rows = 20;
 const unsigned int num_pins_per_strip = 40;
 
@@ -60,10 +59,10 @@ void tester_flakes() {
   snow_matrix[0][8]  = true;
   snow_matrix[1][17] = true;
   snow_matrix[0][3]  = true;
-  snow_matrix[2][5] = true;
-  snow_matrix[3][20] = true;
-  snow_matrix[2][10] = true;
-  snow_matrix[3][4] = true; 
+  //snow_matrix[2][5] = true;
+  //snow_matrix[3][19] = true;
+  //snow_matrix[2][10] = true;
+  //snow_matrix[3][4] = true; 
 }
 
 // Master function.
@@ -115,30 +114,31 @@ void move_flake(int c, int r) {
 
 // Translate flake positions into data output.
 void draw_flake(int c, int r, boolean snow) {
-  int pixel = (c * num_rows) + r;
-  // Dealing with reversing second strip half, should be linked to system vars.
-  if (c == 1 || c == 3) {
+  // Calculate real pixel.
+  int strip_col = c % (num_pins_per_strip/num_rows);
+  int pixel = (strip_col * num_rows) + r;
+  
+  Serial.print("\t sc: ");
+  Serial.print(strip_col);
+  Serial.print("\t c,r: ");
+  Serial.print(c);
+  Serial.print(",");
+  Serial.print(r);
+  Serial.println();
+  
+  // Dealing with reversing second strip, should be linked to system vars.
+  if (strip_col == 1) {
     pixel = map(pixel, 20, 39, 39, 20);
   }
   // Draw or delete.
   if (snow) {
-    // Deal with writing second strip, should be linked to system vars.
-    if (c<1) {
-      strip1.setPixelColor(pixel, snow_color);
-    }
-    else {
-      strip2.setPixelColor(pixel, snow_color);
-    }
+    strip1.setPixelColor(pixel, snow_color);
   }
   else {
-    if (c<1) {
-      strip1.setPixelColor(pixel, bg_color);
-    }
-    else {
-      strip2.setPixelColor(pixel, bg_color);
-    }
+    strip1.setPixelColor(pixel, Color(0, 0, 0));
   }
   // Debug.
+  /*
   Serial.print("c: ");
   Serial.print(c);
   Serial.print("\t r: ");
@@ -146,6 +146,7 @@ void draw_flake(int c, int r, boolean snow) {
   Serial.print("\t p: ");
   Serial.print(pixel);
   Serial.println();
+  */
 }
 
 
