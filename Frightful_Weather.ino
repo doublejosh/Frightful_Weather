@@ -11,6 +11,7 @@
 static unsigned int wait = 0;
 static unsigned int chance_of_snow = 8;
 uint32_t snow_color = Color(40, 60, 70);
+uint32_t bg_color = Color(0, 0, 0);
 
 // System configs.
 int pins[] = {
@@ -132,10 +133,20 @@ void draw_flake(int c, int r, boolean snow) {
   }
   // Draw or delete.
   if (snow) {
-    strip1.setPixelColor(pixel, snow_color);
+    if (c < 2) {
+      strip1.setPixelColor(pixel, snow_color);
+    }
+    else {
+      strip2.setPixelColor(pixel, snow_color);
+    }
   }
   else {
-    strip1.setPixelColor(pixel, Color(0, 0, 0));
+    if (c < 2) {
+      strip1.setPixelColor(pixel, bg_color);
+    }
+    else {
+      strip2.setPixelColor(pixel, bg_color);
+    }
   }
   // Debug.
   /*
