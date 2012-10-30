@@ -8,8 +8,10 @@
 // CONSTANTS...
 
 // Visual configs.
-static unsigned int wait = 0;
-static unsigned int chance_of_snow = 8;
+static unsigned int wait = 75;
+static unsigned int chance_of_snow_min = 20;
+int fluries = 3;
+int chance_of_snow = 2;
 uint32_t snow_color = Color(40, 60, 70);
 uint32_t bg_color = Color(0, 0, 0);
 
@@ -60,10 +62,10 @@ void tester_flakes() {
   snow_matrix[0][8]  = true;
   snow_matrix[1][17] = true;
   snow_matrix[0][3]  = true;
-  //snow_matrix[2][5] = true;
-  //snow_matrix[3][19] = true;
-  //snow_matrix[2][10] = true;
-  //snow_matrix[3][4] = true; 
+  snow_matrix[2][5] = true;
+  snow_matrix[3][19] = true;
+  snow_matrix[2][10] = true;
+  snow_matrix[3][4] = true; 
 }
 
 // Master function.
@@ -86,31 +88,100 @@ void make_it_snow() {
   }
   strip1.show();
   strip2.show();
-  /*
-  x = map(x, 1, 4, 0, 80);
-  */
 }
 
 // Generate new snow.
 void make_flakes() {
-  int i;
-  // Loop through columns.
-  for(i=0;i<num_cols;i++) {
-    // Should we add a new flake?
-    if( random(0, chance_of_snow) == 1 ) {
-      snow_matrix[i][num_rows-1] = true;
-    }
+
+  // Change the weather?
+  switch (random(0,3)) {
+    case 1:
+      chance_of_snow += 1;
+      break;
+      
+    case 2:
+      chance_of_snow -= 1;
+      break;
+      
+    case 3:
+    default:
+      break;
   }
+  
+  // Protect boundaries.
+  if (chance_of_snow < 1 || chance_of_snow > chance_of_snow_min) {
+   chance_of_snow = 1;
+  }
+  else if (chance_of_snow > chance_of_snow_min) {
+    chance_of_snow = chance_of_snow_min;
+  }
+
+  /*
+   // Seed the chance.
+   chance_of_snow = random(1, chance_of_snow_min);
+   // Enhance distribution.
+   // (20 = 100, 12 = 4, 10 = 0, 5 = 25, 1  = 81)
+   int mid_diff = abs(chance_of_snow - (chance_of_snow_min/2));
+   chance_of_snow = pow(mid_diff, 2);
+  */
+
+  Serial.print("chance of snow: ");
+  Serial.print(chance_of_snow);
+  Serial.println();
+
+  // Add a new flake?
+  if( random(0, chance_of_snow) == 1) {
+    int c = random(0, num_cols);
+     // Prevent neighbors.
+     if (!snow_matrix[c][num_rows-2]) {
+       snow_matrix[c][num_rows-1] = true;
+     }
+  }
+
 }
 
 // Shift known flakes to new position.
 void move_flake(int c, int r) {
   // Out with the old.
   snow_matrix[c][r] = false;
-  // In with the new.
-  if (r > 0) {
-    snow_matrix[c][r-1] = true;
+  
+  // Lateral movement.
+  if( random(0, fluries) == 1 ) {
+    // Pick direction.
+    int dir = random(0, 2);
+    switch (dir) {
+      case 1:
+        // Move left, and wrap around.
+        if (c != 0) {
+          snow_matrix[c-1][r-1] = true;
+        }
+        else {
+          snow_matrix[num_cols-1][r-1] = true;
+        }
+        break;
+      case 2:
+        // Move right, with care.
+        if (c != num_cols-1) {
+          snow_matrix[c+1][r-1] = true;
+        }
+        else {
+          snow_matrix[0][r-1] = true;
+        }
+        break;
+      default:
+        // Just in case.
+        if (r > 0) {
+          snow_matrix[c][r-1] = true;
+        }
+    }
   }
+  // Move downward.
+  else {
+    if (r > 0) {
+      snow_matrix[c][r-1] = true;
+    }
+  }
+
 }
 
 // Translate flake positions into data output.
@@ -119,6 +190,7 @@ void draw_flake(int c, int r, boolean snow) {
   int strip_col = c % (num_pins_per_strip/num_rows);
   int pixel = (strip_col * num_rows) + r;
   
+  /*
   Serial.print("\t sc: ");
   Serial.print(strip_col);
   Serial.print("\t c,r: ");
@@ -126,6 +198,7 @@ void draw_flake(int c, int r, boolean snow) {
   Serial.print(",");
   Serial.print(r);
   Serial.println();
+  */
   
   // Dealing with reversing second strip, should be linked to system vars.
   if (strip_col == 1) {
@@ -148,16 +221,6 @@ void draw_flake(int c, int r, boolean snow) {
       strip2.setPixelColor(pixel, bg_color);
     }
   }
-  // Debug.
-  /*
-  Serial.print("c: ");
-  Serial.print(c);
-  Serial.print("\t r: ");
-  Serial.print(r);
-  Serial.print("\t p: ");
-  Serial.print(pixel);
-  Serial.println();
-  */
 }
 
 
