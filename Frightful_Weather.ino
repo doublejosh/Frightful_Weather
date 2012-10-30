@@ -8,7 +8,7 @@
 // CONSTANTS...
 
 // Visual configs.
-static unsigned int wait = 75;
+static unsigned int wait = 100;
 static unsigned int chance_of_snow_min = 20;
 int fluries = 3;
 int chance_of_snow = 2;
@@ -44,8 +44,8 @@ void setup() {
   tester_flakes();
   
   // Debug.
-  Serial.begin(115200);
-  Serial.println("Ready to send data."); 
+  //Serial.begin(115200);
+  //Serial.println("Ready to send data."); 
 }
 
 void loop() {  
@@ -125,9 +125,11 @@ void make_flakes() {
    chance_of_snow = pow(mid_diff, 2);
   */
 
+  /*
   Serial.print("chance of snow: ");
   Serial.print(chance_of_snow);
   Serial.println();
+  */
 
   // Add a new flake?
   if( random(0, chance_of_snow) == 1) {
