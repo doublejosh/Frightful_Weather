@@ -116,7 +116,7 @@ void make_it_snow() {
 // Generate new snow.
 void make_flakes() {
 
-  // Change the weather?
+  // Chance the weather?
   switch (random(0,3)) {
     case 1:
       chance_of_snow += 1;
