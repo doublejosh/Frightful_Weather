@@ -1,5 +1,7 @@
+
 #include "SPI.h"
 #include "WS2801.h"
+#include <MemoryFree.h>
 
 /**
  * Snow pattern for Vermillion's "Winter Lights" show 2012.
@@ -7,13 +9,15 @@
 
 // CONSTANTS...
 
-// Visual configs.
-static unsigned int wait = 100;
+static unsigned int wait = 80;
 static unsigned int chance_of_snow_min = 20;
-int fluries = 3;
-int chance_of_snow = 2;
+static unsigned int speed_range = 3;
+unsigned int fluries = 2; // Intended for sensor.
+unsigned int chance_of_snow = 2; // Starting value.
 uint32_t snow_color = Color(40, 60, 70);
 uint32_t bg_color = Color(0, 0, 0);
+
+boolean debug_mode = false;
 
 // System configs.
 int pins[] = {
@@ -31,8 +35,10 @@ WS2801 strip1 = WS2801(num_pins_per_strip, pins[0], pins[1]);
 WS2801 strip2 = WS2801(num_pins_per_strip, pins[2], pins[3]);
 
 // Snow holder (4X20).
-boolean snow_matrix[num_cols][num_rows] = {0};
+int snow_matrix[num_cols][num_rows] = {0};
 //memset(snow_matrix, false, sizeof(snow_matrix));
+unsigned int speed_throttle = 1;
+unsigned int cycles = 0;
 
 // REQUIRED...
 
@@ -44,11 +50,23 @@ void setup() {
   tester_flakes();
   
   // Debug.
-  //Serial.begin(115200);
-  //Serial.println("Ready to send data."); 
+  if(debug_mode) {
+    Serial.begin(115200);
+    Serial.println("Ready to send data.");
+  }
 }
 
-void loop() {  
+void loop() {
+  
+  if(debug_mode) {
+    Serial.print("freeMemory()=");
+    Serial.println(freeMemory());
+    cycles++;
+    String msg = "<< << << #";
+    msg += cycles;
+    report(0, 0, 0, 0, msg);
+  }
+  
   make_it_snow();
   delay(wait);
 }
@@ -58,14 +76,14 @@ void loop() {
 
 // Creation debug.
 void tester_flakes() {
-  snow_matrix[1][15] = true;
-  snow_matrix[0][8]  = true;
-  snow_matrix[1][17] = true;
-  snow_matrix[0][3]  = true;
-  snow_matrix[2][5] = true;
-  snow_matrix[3][19] = true;
-  snow_matrix[2][10] = true;
-  snow_matrix[3][4] = true; 
+  snow_matrix[1][15] = 1;
+  snow_matrix[0][8]  = 1;
+  snow_matrix[1][17] = 1;
+  snow_matrix[0][3]  = 1;
+  snow_matrix[2][5] = 1;
+  snow_matrix[3][19] = 1;
+  snow_matrix[2][10] = 1;
+  snow_matrix[3][4] = 1; 
 }
 
 // Master function.
@@ -75,7 +93,8 @@ void make_it_snow() {
   int r, c;
   for (c=0;c<num_cols;c++) {
     for (r=0;r<num_rows;r++) {
-      if (snow_matrix[c][r] == true) {
+      if (snow_matrix[c][r] > 0) {
+        report(c, r, snow_matrix[c][r], speed_throttle, "bothering");
         draw_flake(c, r, true);
         move_flake(c, r);
       }
@@ -85,6 +104,10 @@ void make_it_snow() {
         draw_flake(c, r, false);
       }
     } 
+  }
+  speed_throttle++;
+  if (speed_throttle > speed_range) {
+    speed_throttle = 1;
   }
   strip1.show();
   strip2.show();
@@ -124,65 +147,78 @@ void make_flakes() {
    int mid_diff = abs(chance_of_snow - (chance_of_snow_min/2));
    chance_of_snow = pow(mid_diff, 2);
   */
-
-  /*
-  Serial.print("chance of snow: ");
-  Serial.print(chance_of_snow);
-  Serial.println();
-  */
-
+  
   // Add a new flake?
   if( random(0, chance_of_snow) == 1) {
+    
+    // Pick a speed
+    int s = random(1, speed_range);
+    // Pick a column
     int c = random(0, num_cols);
      // Prevent neighbors.
-     if (!snow_matrix[c][num_rows-2]) {
-       snow_matrix[c][num_rows-1] = true;
+     if (snow_matrix[c][num_rows-2] == 0) {
+       snow_matrix[c][num_rows-1] = s;
      }
+     
   }
 
 }
 
 // Shift known flakes to new position.
 void move_flake(int c, int r) {
-  // Out with the old.
-  snow_matrix[c][r] = false;
+
+  int s = snow_matrix[c][r];
   
-  // Lateral movement.
-  if( random(0, fluries) == 1 ) {
-    // Pick direction.
-    int dir = random(0, 2);
-    switch (dir) {
-      case 1:
-        // Move left, and wrap around.
-        if (c != 0) {
-          snow_matrix[c-1][r-1] = true;
-        }
-        else {
-          snow_matrix[num_cols-1][r-1] = true;
-        }
-        break;
-      case 2:
-        // Move right, with care.
-        if (c != num_cols-1) {
-          snow_matrix[c+1][r-1] = true;
-        }
-        else {
-          snow_matrix[0][r-1] = true;
-        }
-        break;
-      default:
-        // Just in case.
-        if (r > 0) {
-          snow_matrix[c][r-1] = true;
-        }
-    }
-  }
-  // Move downward.
-  else {
+  report(c, r, s, speed_throttle, "regardless");
+  
+  if (s >= speed_throttle) {
+  
+    // Out with the old.
+    snow_matrix[c][r] = 0;
+    
+    // Can't move it on the ground.
     if (r > 0) {
-      snow_matrix[c][r-1] = true;
-    }
-  }
+      // Lateral movement.
+      if( random(0, fluries) == 1 ) {
+        // Pick direction.
+        int dir = random(0, 2);
+        switch (dir) {
+          case 1:
+            // Move left, and wrap around.
+            report(c, r, s, speed_throttle, "left");
+            if (c > 0) {
+              snow_matrix[c-1][r-1] = s;
+            }
+            else {
+              snow_matrix[num_cols-1][r-1] = s;
+            }
+            break;
+          case 2:
+            // Move right, with care.
+            report(c, r, s, speed_throttle, "right");
+            if (c < num_cols-1) {
+              snow_matrix[c+1][r-1] = s;
+            }
+            else {
+              snow_matrix[0][r-1] = s;
+            }
+            break;
+          default:
+            // Just in case.
+            report(c, r, s, speed_throttle, "just in case");
+            if (r > 0) {
+              snow_matrix[c][r-1] = s;
+            }
+        }
+      }
+      // Move downward.
+      else {
+        report(c, r, s, speed_throttle, "down");
+        snow_matrix[c][r-1] = s;
+      }
+    } // End row careful.
+
+  } // End speed.
 
 }
 
@@ -238,5 +274,25 @@ uint32_t Color(byte r, byte g, byte b)
   c <<= 8;
   c |= b;
   return c;
+}
+
+void report (int c, int r, int s, int st, String msg) {
+
+  if(debug_mode) {
+    Serial.print("c: ");
+    Serial.print(c);
+    Serial.print("\t r: ");
+    Serial.print(r);
+    Serial.print("\t s: ");
+    Serial.print(s);
+    Serial.print("\t st: ");
+    Serial.print(st);
+  
+    Serial.print("\t msg: ");
+    Serial.print(msg);
+  
+    Serial.println();
+  }
+
 }
 
