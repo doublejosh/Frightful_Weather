@@ -10,7 +10,7 @@
 // CONSTANTS...
 
 static unsigned int wait = 80;
-static unsigned int chance_of_snow_min = 20;
+static unsigned int chance_of_snow_min = 26;
 static unsigned int speed_range = 3;
 unsigned int fluries = 2; // Intended for sensor.
 unsigned int chance_of_snow = 2; // Starting value.
