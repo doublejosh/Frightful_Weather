@@ -4,19 +4,58 @@
 #include <MemoryFree.h>
 
 /**
- * Snow pattern for Vermillion's "Winter Lights" show 2012.
+ * Patterns for Vermillion's "Ocillate" show. Seattle, 2012.
  */
 
-// CONSTANTS...
-
-static unsigned int wait = 80;
+/**
+ * Weather Configs ...
+ * 0 = Wait delay.
+ * 1 = Min sparseness of active pixels.
+ * 2 = Speed range of active pixels.
+ * 3 = Flurie chance (laternal moves).
+ */
+const unsigned int seasons = 3;
+static unsigned int configs[][4] = {
+  // Snow.
+  {100, 25, 4, 2},
+  // Rain.
+  {25, 2, 1, 0},
+  // Leaves.
+  {70, 26, 5, 5}
+};
+uint32_t colors[seasons][5] = {
+  {
+    // Snow.
+    Color(40, 45, 60),
+    Color(40, 45, 60),
+    Color(40, 45, 60),
+    Color(40, 45, 60),
+    Color(40, 45, 60)
+  }, {
+    // Rain.
+    Color(79, 104, 239),
+    Color(21, 124, 197),
+    Color(39, 154, 207),
+    Color(79, 104, 239),
+    Color(21, 124, 197)
+  }, {
+    // Leaves.
+    Color(224, 95, 0),
+    Color(220, 167, 9),
+    Color(211, 46, 9),
+    Color(228, 64, 1),
+    Color(200, 44, 10)
+  }
+};
+/*
+// The old way.
+static unsigned int wait = 50;
 static unsigned int chance_of_snow_min = 26;
-static unsigned int speed_range = 3;
-unsigned int fluries = 2; // Intended for sensor.
-unsigned int chance_of_snow = 2; // Starting value.
-uint32_t snow_color = Color(40, 60, 70);
-uint32_t bg_color = Color(0, 0, 0);
+static unsigned int speed_range = 5;
+unsigned int fluries = 4; // Intended for sensor.
+*/
 
+// CONSTANTS...
 boolean debug_mode = false;
 
 // System configs.
@@ -37,8 +76,13 @@ WS2801 strip2 = WS2801(num_pins_per_strip, pins[2], pins[3]);
 // Snow holder (4X20).
 int snow_matrix[num_cols][num_rows] = {0};
 //memset(snow_matrix, false, sizeof(snow_matrix));
+unsigned int chance_of_snow = 2; // Starting value.
 unsigned int speed_throttle = 1;
 unsigned int cycles = 0;
+unsigned int master_season = 0;
+static unsigned long lWaitMillis;
+static unsigned int master_wait = (20 * 1000);
+uint32_t bg_color = Color(0, 0, 0);
 
 // REQUIRED...
 
@@ -47,7 +91,7 @@ void setup() {
   strip2.begin();
   randomSeed(analogRead(0));
   
-  tester_flakes();
+  //tester_flakes();
   
   // Debug.
   if(debug_mode) {
@@ -57,17 +101,37 @@ void setup() {
 }
 
 void loop() {
-  
+  // Use season configs.
+  unsigned int wait = configs[master_season][0];
+    
+  // Rotate through seasons.
+  if( (long)( millis() - lWaitMillis ) >= 0) {
+    //  Rollover has occured...
+    master_season++;
+    lWaitMillis += master_wait;  // Check again one second later.
+    // Draw even during a chance moment.
+    make_it_snow();
+  }
+  else {  
+    // Still before the next rollover time.
+    make_it_snow();
+  }
+  // Keep within available seasons.
+  if (master_season >= seasons) {
+    master_season = 0;
+  }
+
   if(debug_mode) {
-    Serial.print("freeMemory()=");
-    Serial.println(freeMemory());
+    //Serial.print("freeMemory()=");
+    //Serial.println(freeMemory());
     cycles++;
     String msg = "<< << << #";
     msg += cycles;
-    report(0, 0, 0, 0, msg);
+    //report(0, 0, 0, 0, msg);
   }
-  
-  make_it_snow();
+
+  report(5,5,5,5, "season: " + (String) master_season + " chance: " + (String) chance_of_snow);
+
   delay(wait);
 }
 
@@ -80,21 +144,24 @@ void tester_flakes() {
   snow_matrix[0][8]  = 1;
   snow_matrix[1][17] = 1;
   snow_matrix[0][3]  = 1;
-  snow_matrix[2][5] = 1;
+  snow_matrix[2][5]  = 1;
   snow_matrix[3][19] = 1;
   snow_matrix[2][10] = 1;
-  snow_matrix[3][4] = 1; 
+  snow_matrix[3][4]  = 1; 
 }
 
 // Master function.
 void make_it_snow() {
+  // Use season configs.
+  unsigned int speed_range = configs[master_season][2];
+  
   make_flakes();
   // Loop through snow.
   int r, c;
   for (c=0;c<num_cols;c++) {
     for (r=0;r<num_rows;r++) {
       if (snow_matrix[c][r] > 0) {
-        report(c, r, snow_matrix[c][r], speed_throttle, "bothering");
+        //report(c, r, snow_matrix[c][r], speed_throttle, "bothering");
         draw_flake(c, r, true);
         move_flake(c, r);
       }
@@ -115,8 +182,11 @@ void make_it_snow() {
 
 // Generate new snow.
 void make_flakes() {
-
-  // Chance the weather?
+  // Use season configs.
+  unsigned int chance_of_snow_min = configs[master_season][1];
+  unsigned int speed_range = configs[master_season][2];
+  
+  // Change the weather?
   switch (random(0,3)) {
     case 1:
       chance_of_snow += 1;
@@ -132,8 +202,8 @@ void make_flakes() {
   }
   
   // Protect boundaries.
-  if (chance_of_snow < 1 || chance_of_snow > chance_of_snow_min) {
-   chance_of_snow = 1;
+  if (chance_of_snow <= 1) {
+   chance_of_snow = 2;
   }
   else if (chance_of_snow > chance_of_snow_min) {
     chance_of_snow = chance_of_snow_min;
@@ -166,10 +236,12 @@ void make_flakes() {
 
 // Shift known flakes to new position.
 void move_flake(int c, int r) {
-
+  // Use season configs.
+  unsigned int fluries = configs[master_season][3];
+  
   int s = snow_matrix[c][r];
   
-  report(c, r, s, speed_throttle, "regardless");
+  //report(c, r, s, speed_throttle, "regardless");
   
   if (s >= speed_throttle) {
   
@@ -185,7 +257,7 @@ void move_flake(int c, int r) {
         switch (dir) {
           case 1:
             // Move left, and wrap around.
-            report(c, r, s, speed_throttle, "left");
+            //report(c, r, s, speed_throttle, "left");
             if (c > 0) {
               snow_matrix[c-1][r-1] = s;
             }
@@ -195,7 +267,7 @@ void move_flake(int c, int r) {
             break;
           case 2:
             // Move right, with care.
-            report(c, r, s, speed_throttle, "right");
+            //report(c, r, s, speed_throttle, "right");
             if (c < num_cols-1) {
               snow_matrix[c+1][r-1] = s;
             }
@@ -205,7 +277,7 @@ void move_flake(int c, int r) {
             break;
           default:
             // Just in case.
-            report(c, r, s, speed_throttle, "just in case");
+            //report(c, r, s, speed_throttle, "just in case");
             if (r > 0) {
               snow_matrix[c][r-1] = s;
             }
@@ -213,7 +285,7 @@ void move_flake(int c, int r) {
       }
       // Move downward.
       else {
-        report(c, r, s, speed_throttle, "down");
+        //report(c, r, s, speed_throttle, "down");
         snow_matrix[c][r-1] = s;
       }
     } // End row careful.
@@ -245,10 +317,12 @@ void draw_flake(int c, int r, boolean snow) {
   // Draw or delete.
   if (snow) {
     if (c < 2) {
-      strip1.setPixelColor(pixel, snow_color);
+      //strip1.setPixelColor(pixel, colors[snow_matrix[c][r]]);
+      strip1.setPixelColor(pixel, colors[master_season][snow_matrix[c][r]]);
     }
     else {
-      strip2.setPixelColor(pixel, snow_color);
+      //strip2.setPixelColor(pixel, colors[snow_matrix[c][r]]);
+      strip2.setPixelColor(pixel, colors[master_season][snow_matrix[c][r]]);
     }
   }
   else {
@@ -287,6 +361,8 @@ void report (int c, int r, int s, int st, String msg) {
     Serial.print(s);
     Serial.print("\t st: ");
     Serial.print(st);
+    Serial.print("\t c: ");
+    Serial.print(cycles);
   
     Serial.print("\t msg: ");
     Serial.print(msg);
